@@ -1,0 +1,21 @@
+{
+  "type": "service",
+  "name": "feishu-mcp",
+  "version": "1.0.0",
+  "description": "Feishu Bitable MCP Server on Zeabur",
+  "icon": "https://cdn.jsdelivr.net/gh/zeabur/service-icons@main/services/node.svg",
+  "scripts": {
+    "start": "node --import tsx server/mcp/http.ts"
+  },
+  "env": {
+    "FEISHU_APP_ID": {
+      "required": true
+    },
+    "FEISHU_APP_SECRET": {
+      "required": true
+    },
+    "PORT": {
+      "default": "3000"
+    }
+  }
+}

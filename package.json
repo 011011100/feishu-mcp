@@ -1,0 +1,26 @@
+{
+  "name": "feishu-mcp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "mcp": "tsx server/mcp/index.ts"
+  },
+  "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.35.0",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "nuxt": "^3.15.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
