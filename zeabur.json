@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "Feishu Bitable MCP Server on Zeabur",
   "scripts": {
-    "start": "node .output/server/index.mjs"
+    "build": "echo 'No build step'",
+    "start": "node --import tsx server/mcp/http.ts"
   },
   "env": {
     "FEISHU_APP_ID": {
@@ -13,7 +14,7 @@
     "FEISHU_APP_SECRET": {
       "required": true
     },
-    "NITRO_PORT": {
+    "PORT": {
       "default": "3000"
     }
   }
