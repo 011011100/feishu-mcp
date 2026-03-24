@@ -1,5 +1,6 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -44,7 +45,7 @@ function getFeishuClient(): FeishuClient {
   return feishuClient
 }
 
-// 创建 MCP 服务器的工厂函数（每个连接需要一个独立实例）
+// 创建 MCP 服务器的工厂函数
 function createServer(): Server {
   const server = new Server(
     {
@@ -234,12 +235,7 @@ function createServer(): Server {
 }
 
 // 会话管理
-interface Session {
-  transport: StreamableHTTPServerTransport
-  server: Server
-}
-
-const sessions = new Map<string, Session>()
+const transports = new Map<string, StreamableHTTPServerTransport>()
 
 // 新的 Streamable HTTP 端点
 app.post('/sse', async (req, res) => {
@@ -248,12 +244,12 @@ app.post('/sse', async (req, res) => {
   try {
     // 检查是否是已存在的会话
     const sessionId = req.headers['mcp-session-id'] as string | undefined
-    let session = sessionId ? sessions.get(sessionId) : undefined
+    let transport = sessionId ? transports.get(sessionId) : undefined
 
-    if (!session) {
-      // 创建新会话
+    // 如果是初始化请求，创建新会话
+    if (!transport && isInitializeRequest(req.body)) {
       const newSessionId = randomUUID()
-      const transport = new StreamableHTTPServerTransport({
+      transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         onsessioninitialized: (id) => {
           console.log('会话已初始化:', id)
@@ -263,18 +259,29 @@ app.post('/sse', async (req, res) => {
       // 为每个会话创建独立的 Server 实例
       const server = createServer()
 
-      session = { transport, server }
-      sessions.set(newSessionId, session)
+      transports.set(newSessionId, transport)
 
       transport.onclose = () => {
         console.log('会话关闭:', newSessionId)
-        sessions.delete(newSessionId)
+        transports.delete(newSessionId)
       }
 
       await server.connect(transport)
     }
 
-    await session.transport.handleRequest(req, res, req.body)
+    if (!transport) {
+      res.status(400).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32000,
+          message: 'Session not found',
+        },
+        id: null,
+      })
+      return
+    }
+
+    await transport.handleRequest(req, res, req.body)
   } catch (error) {
     console.error('处理请求错误:', error)
     if (!res.headersSent) {
@@ -294,7 +301,7 @@ app.post('/sse', async (req, res) => {
 app.get('/sse', async (req, res) => {
   console.log('SSE GET 请求 - 返回会话列表')
   res.json({
-    sessions: Array.from(sessions.keys()),
+    sessions: Array.from(transports.keys()),
     protocol: 'MCP 2025-03-26 (Streamable HTTP)',
   })
 })
