@@ -1,0 +1,12 @@
+{
+  "type": "node",
+  "build": {
+    "command": "npm install"
+  },
+  "start": {
+    "command": "npm run start"
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
