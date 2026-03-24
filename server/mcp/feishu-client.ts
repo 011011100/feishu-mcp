@@ -126,6 +126,49 @@ export class FeishuClient {
   }
 
   /**
+   * 搜索 Wiki
+   * API 文档: https://open.feishu.cn/document/server-docs/docs/wiki-v2/wiki-search
+   * @param query 搜索关键词，长度不超过50个字符
+   * @param spaceId 知识空间ID（可选）
+   * @param nodeId 节点ID（可选，过滤该节点及其子节点）
+   * @param pageToken 分页token（可选）
+   * @param pageSize 每页数量，默认20，最大50
+   */
+  async searchWiki(
+    query: string,
+    spaceId?: string,
+    nodeId?: string,
+    pageToken?: string,
+    pageSize: number = 20
+  ) {
+    const params = new URLSearchParams()
+    if (pageToken) params.append('page_token', pageToken)
+    params.append('page_size', String(Math.min(pageSize, 50)))
+
+    const url = `https://open.feishu.cn/open-apis/wiki/v2/nodes/search?${params}`
+
+    const body: Record<string, unknown> = { query }
+    if (spaceId) body.space_id = spaceId
+    if (nodeId) body.node_id = nodeId
+
+    return this.request<{
+      items: Array<{
+        node_id: string
+        space_id: string
+        obj_type: number
+        obj_token: string
+        parent_id: string
+        sort_id: number
+        title: string
+        url: string
+        icon: string
+      }>
+      page_token?: string
+      has_more: boolean
+    }>('POST', url, body)
+  }
+
+  /**
    * 使用飞书 SDK 的备用方法
    */
   async listTablesWithSDK(appToken: string) {

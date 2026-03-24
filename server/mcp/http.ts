@@ -35,6 +35,13 @@ const SearchRecordsSchema = z.object({
   keyword: z.string().describe('搜索关键词'),
 })
 
+const SearchWikiSchema = z.object({
+  query: z.string().max(50).describe('搜索关键词，长度不超过50个字符'),
+  spaceId: z.string().optional().describe('知识空间ID（可选，不填则搜索所有空间）'),
+  nodeId: z.string().optional().describe('节点ID（可选，搜索该节点及其子节点，使用此参数必须同时传入spaceId）'),
+  pageSize: z.number().max(50).default(20).describe('每页数量，默认20，最大50'),
+})
+
 // 飞书客户端 - 延迟初始化
 let feishuClient: FeishuClient | null = null
 
@@ -146,6 +153,32 @@ function createServer(): Server {
           required: ['appToken', 'tableId'],
         },
       },
+      {
+        name: 'search_wiki',
+        description: '搜索 Wiki，通过关键词查询用户可见的知识库文档。注意：搜索不到结果可能是用户没有查看权限',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: '搜索关键词，长度不超过50个字符',
+            },
+            spaceId: {
+              type: 'string',
+              description: '知识空间ID（可选，不填则搜索所有空间）',
+            },
+            nodeId: {
+              type: 'string',
+              description: '节点ID（可选，搜索该节点及其子节点，使用此参数必须同时传入spaceId）',
+            },
+            pageSize: {
+              type: 'number',
+              description: '每页数量，默认20，最大50',
+            },
+          },
+          required: ['query'],
+        },
+      },
     ]
 
     return { tools }
@@ -204,6 +237,19 @@ function createServer(): Server {
             tableId: z.string(),
           }).parse(args)
           const result = await feishu.getViews(appToken, tableId)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          }
+        }
+
+        case 'search_wiki': {
+          const { query, spaceId, nodeId, pageSize } = SearchWikiSchema.parse(args)
+          const result = await feishu.searchWiki(query, spaceId, nodeId, undefined, pageSize)
           return {
             content: [
               {
