@@ -42,6 +42,13 @@ const SearchWikiSchema = z.object({
   pageSize: z.number().max(50).default(20).describe('每页数量，默认20，最大50'),
 })
 
+const GetDocxBlocksSchema = z.object({
+  documentId: z.string().describe('文档唯一标识，如 doxbcmEtbFrbbq10nPNu8gabcef'),
+  pageSize: z.number().max(500).default(500).describe('分页大小，默认500，最大500'),
+  pageToken: z.string().optional().describe('分页标记，首次请求不填'),
+  documentRevisionId: z.number().default(-1).describe('文档版本，-1表示最新版本，默认-1'),
+})
+
 // 飞书客户端 - 延迟初始化
 let feishuClient: FeishuClient | null = null
 
@@ -179,6 +186,32 @@ function createServer(): Server {
           required: ['query'],
         },
       },
+      {
+        name: 'get_docx_blocks',
+        description: '获取 Docx 文档的所有内容块，包括文本、标题、代码、图片等。文档ID可从Wiki搜索结果中获取（obj_token字段）',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            documentId: {
+              type: 'string',
+              description: '文档唯一标识，如 doxbcmEtbFrbbq10nPNu8gabcef',
+            },
+            pageSize: {
+              type: 'number',
+              description: '分页大小，默认500，最大500',
+            },
+            pageToken: {
+              type: 'string',
+              description: '分页标记，首次请求不填',
+            },
+            documentRevisionId: {
+              type: 'number',
+              description: '文档版本，-1表示最新版本，默认-1',
+            },
+          },
+          required: ['documentId'],
+        },
+      },
     ]
 
     return { tools }
@@ -250,6 +283,19 @@ function createServer(): Server {
         case 'search_wiki': {
           const { query, spaceId, nodeId, pageSize } = SearchWikiSchema.parse(args)
           const result = await feishu.searchWiki(query, spaceId, nodeId, undefined, pageSize)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          }
+        }
+
+        case 'get_docx_blocks': {
+          const { documentId, pageSize, pageToken, documentRevisionId } = GetDocxBlocksSchema.parse(args)
+          const result = await feishu.getDocxBlocks(documentId, pageSize, pageToken, documentRevisionId)
           return {
             content: [
               {

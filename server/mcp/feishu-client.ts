@@ -169,6 +169,64 @@ export class FeishuClient {
   }
 
   /**
+   * 获取 Docx 文档的所有内容块
+   * API 文档: https://open.feishu.cn/document/server-docs/docs/docs/docx-v1/document/list
+   * @param documentId 文档唯一标识，如 `doxbcmEtbFrbbq10nPNu8gabcef`
+   * @param pageSize 分页大小，默认500，最大500
+   * @param pageToken 分页标记，首次请求不填
+   * @param documentRevisionId 文档版本，-1表示最新版本，默认-1
+   */
+  async getDocxBlocks(
+    documentId: string,
+    pageSize: number = 500,
+    pageToken?: string,
+    documentRevisionId: number = -1
+  ) {
+    const params = new URLSearchParams()
+    params.append('page_size', String(Math.min(pageSize, 500)))
+    if (pageToken) params.append('page_token', pageToken)
+    params.append('document_revision_id', String(documentRevisionId))
+
+    const url = `https://open.feishu.cn/open-apis/docx/v1/documents/${documentId}/blocks?${params}`
+
+    return this.request<{
+      items: Array<{
+        block_id: string
+        parent_id: string
+        children: string[]
+        block_type: number
+        page?: object
+        text?: object
+        heading1?: object
+        heading2?: object
+        heading3?: object
+        heading4?: object
+        heading5?: object
+        heading6?: object
+        heading7?: object
+        heading8?: object
+        heading9?: object
+        bullet?: object
+        ordered?: object
+        code?: {
+          language: number
+          wrap: boolean
+          elements: any[]
+        }
+        todo?: {
+          done: boolean
+          elements: any[]
+        }
+        divider?: object
+        image?: object
+        table?: object
+      }>
+      page_token?: string
+      has_more: boolean
+    }>('GET', url)
+  }
+
+  /**
    * 使用飞书 SDK 的备用方法
    */
   async listTablesWithSDK(appToken: string) {
