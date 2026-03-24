@@ -1,5 +1,5 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js'
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -8,6 +8,7 @@ import {
 import { z } from 'zod'
 import express from 'express'
 import { FeishuClient } from './feishu-client'
+import { randomUUID } from 'crypto'
 
 // 创建 Express 应用
 const app = express()
@@ -228,40 +229,60 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 })
 
-// 存储 SSE 传输连接
-const transports = new Map<string, SSEServerTransport>()
+// 会话管理
+const transports = new Map<string, StreamableHTTPServerTransport>()
 
-// SSE 端点 - 客户端连接
-app.get('/sse', async (req, res) => {
-  console.log('SSE 连接请求')
+// 新的 Streamable HTTP 端点
+app.post('/sse', async (req, res) => {
+  console.log('Streamable HTTP 请求:', req.headers['mcp-session-id'] || 'new session')
+
   try {
-    const transport = new SSEServerTransport('/messages', res)
-    transports.set(transport.sessionId, transport)
+    // 检查是否是新的会话
+    const sessionId = req.headers['mcp-session-id'] as string | undefined
+    let transport = sessionId ? transports.get(sessionId) : undefined
 
-    res.on('close', () => {
-      console.log('SSE 连接关闭:', transport.sessionId)
-      transports.delete(transport.sessionId)
-    })
+    if (!transport) {
+      // 创建新会话
+      const newSessionId = randomUUID()
+      transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => newSessionId,
+        onsessioninitialized: (session) => {
+          console.log('会话已初始化:', session)
+          transports.set(session, transport!)
+        },
+      })
 
-    await server.connect(transport)
-    console.log('SSE 连接成功:', transport.sessionId)
+      transport.onclose = () => {
+        console.log('会话关闭:', newSessionId)
+        transports.delete(newSessionId)
+      }
+
+      await server.connect(transport)
+    }
+
+    await transport.handleRequest(req, res, req.body)
   } catch (error) {
-    console.error('SSE 连接错误:', error)
-    res.status(500).send('Internal Server Error')
+    console.error('处理请求错误:', error)
+    if (!res.headersSent) {
+      res.status(500).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: 'Internal server error',
+        },
+        id: null,
+      })
+    }
   }
 })
 
-// 消息端点 - 客户端发送消息
-app.post('/messages', async (req, res) => {
-  const sessionId = req.query.sessionId as string
-  const transport = transports.get(sessionId)
-
-  if (!transport) {
-    res.status(400).send('Session not found')
-    return
-  }
-
-  await transport.handlePostMessage(req, res, req.body)
+// 支持 GET 请求（用于 SSE 模式回退）
+app.get('/sse', async (req, res) => {
+  console.log('SSE GET 请求 - 返回会话列表')
+  res.json({
+    sessions: Array.from(transports.keys()),
+    protocol: 'MCP 2025-03-26 (Streamable HTTP)',
+  })
 })
 
 // 健康检查
@@ -274,9 +295,9 @@ app.get('/', (req, res) => {
   res.json({
     name: 'Feishu Bitable MCP Server',
     version: '1.0.0',
+    protocol: 'MCP 2025-03-26 (Streamable HTTP)',
     endpoints: {
-      sse: '/sse',
-      messages: '/messages',
+      mcp: '/sse (POST for MCP, GET for info)',
       health: '/health',
     },
   })
@@ -286,7 +307,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`飞书 Bitable MCP 服务器已启动`)
   console.log(`- 本地访问: http://localhost:${PORT}`)
-  console.log(`- SSE 端点: http://localhost:${PORT}/sse`)
+  console.log(`- MCP 端点: http://localhost:${PORT}/sse`)
   console.log(`- 健康检查: http://localhost:${PORT}/health`)
   console.log(`环境变量检查: FEISHU_APP_ID=${process.env.FEISHU_APP_ID ? '已设置' : '未设置'}`)
   console.log(`环境变量检查: FEISHU_APP_SECRET=${process.env.FEISHU_APP_SECRET ? '已设置' : '未设置'}`)
