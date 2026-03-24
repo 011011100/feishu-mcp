@@ -11,6 +11,7 @@ import { FeishuClient } from './feishu-client'
 
 // 创建 Express 应用
 const app = express()
+app.use(express.json())
 const PORT = process.env.PORT || 3000
 
 // 工具参数定义
