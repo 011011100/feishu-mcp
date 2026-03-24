@@ -391,7 +391,10 @@ app.post('/sse', async (req, res) => {
 
 // 支持 GET 请求（用于 SSE 模式回退）
 app.get('/sse', async (req, res) => {
-  console.log('SSE GET 请求 - 返回会话列表')
+  const sessionCount = transports.size
+  if (sessionCount > 0) {
+    console.log(`SSE GET 请求 - 当前活跃会话数: ${sessionCount}`)
+  }
   res.json({
     sessions: Array.from(transports.keys()),
     protocol: 'MCP 2025-03-26 (Streamable HTTP)',
