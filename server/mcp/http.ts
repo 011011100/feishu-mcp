@@ -221,13 +221,20 @@ function createServer(): Server {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params
 
+    // 记录工具调用日志
+    const timestamp = new Date().toISOString()
+    const argKeys = args ? Object.keys(args) : []
+    console.log(`[${timestamp}] 工具调用: ${name}(${argKeys.join(', ')})`)
+
     try {
       const feishu = getFeishuClient()
 
       switch (name) {
         case 'list_bitable_tables': {
           const { appToken } = ListTablesSchema.parse(args)
+          console.log(`  -> appToken: ${appToken.substring(0, 10)}...`)
           const result = await feishu.listTables(appToken)
+          console.log(`  <- 返回 ${result.items?.length || 0} 个数据表`)
           return {
             content: [
               {
@@ -240,7 +247,9 @@ function createServer(): Server {
 
         case 'list_bitable_records': {
           const { appToken, tableId, viewId, pageSize } = ListRecordsSchema.parse(args)
+          console.log(`  -> appToken: ${appToken.substring(0, 10)}..., tableId: ${tableId}${viewId ? ', viewId: ' + viewId : ''}`)
           const result = await feishu.listRecords(appToken, tableId, viewId, pageSize)
+          console.log(`  <- 返回 ${result.items?.length || 0} 条记录 (总计 ${result.total || 0})`)
           return {
             content: [
               {
@@ -253,7 +262,9 @@ function createServer(): Server {
 
         case 'search_bitable_records': {
           const { appToken, tableId, fieldName, keyword } = SearchRecordsSchema.parse(args)
+          console.log(`  -> tableId: ${tableId}, fieldName: ${fieldName}, keyword: ${keyword}`)
           const result = await feishu.searchRecords(appToken, tableId, fieldName, keyword)
+          console.log(`  <- 找到 ${result.items?.length || 0} 条匹配记录`)
           return {
             content: [
               {
@@ -269,7 +280,9 @@ function createServer(): Server {
             appToken: z.string(),
             tableId: z.string(),
           }).parse(args)
+          console.log(`  -> tableId: ${tableId}`)
           const result = await feishu.getViews(appToken, tableId)
+          console.log(`  <- 返回 ${result.items?.length || 0} 个视图`)
           return {
             content: [
               {
@@ -282,7 +295,9 @@ function createServer(): Server {
 
         case 'search_wiki': {
           const { query, spaceId, nodeId, pageSize } = SearchWikiSchema.parse(args)
+          console.log(`  -> query: "${query}"${spaceId ? ', spaceId: ' + spaceId : ''}${nodeId ? ', nodeId: ' + nodeId : ''}`)
           const result = await feishu.searchWiki(query, spaceId, nodeId, undefined, pageSize)
+          console.log(`  <- 找到 ${result.items?.length || 0} 个 Wiki 文档`)
           return {
             content: [
               {
@@ -295,7 +310,9 @@ function createServer(): Server {
 
         case 'get_docx_blocks': {
           const { documentId, pageSize, pageToken, documentRevisionId } = GetDocxBlocksSchema.parse(args)
+          console.log(`  -> documentId: ${documentId.substring(0, 15)}...`)
           const result = await feishu.getDocxBlocks(documentId, pageSize, pageToken, documentRevisionId)
+          console.log(`  <- 返回 ${result.items?.length || 0} 个内容块`)
           return {
             content: [
               {
@@ -311,6 +328,7 @@ function createServer(): Server {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
+      console.log(`  [!] 错误: ${errorMessage}`)
       return {
         content: [
           {
@@ -391,10 +409,6 @@ app.post('/sse', async (req, res) => {
 
 // 支持 GET 请求（用于 SSE 模式回退）
 app.get('/sse', async (req, res) => {
-  const sessionCount = transports.size
-  if (sessionCount > 0) {
-    console.log(`SSE GET 请求 - 当前活跃会话数: ${sessionCount}`)
-  }
   res.json({
     sessions: Array.from(transports.keys()),
     protocol: 'MCP 2025-03-26 (Streamable HTTP)',
