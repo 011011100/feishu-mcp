@@ -2,6 +2,7 @@
   "name": "feishu-mcp",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.18.0",
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",

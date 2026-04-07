@@ -1,10 +1,10 @@
 {
   "type": "node",
   "build": {
-    "command": "npm install"
+    "command": "pnpm install --frozen-lockfile"
   },
   "start": {
-    "command": "npm run start"
+    "command": "pnpm start"
   },
   "env": {
     "NODE_ENV": "production"

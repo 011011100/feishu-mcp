@@ -277,7 +277,7 @@ return {
 
 1. **启动本地服务器**：
    ```bash
-   npm run start
+   pnpm start
    ```
 
 2. **使用 mcp-remote 测试**：

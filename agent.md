@@ -118,7 +118,7 @@ case 'new_method': {
 **本地测试**：
 ```bash
 # 1. 启动本地服务器
-npm run start
+pnpm start
 
 # 2. 测试连接
 curl http://localhost:3000/health

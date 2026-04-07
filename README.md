@@ -13,7 +13,7 @@
 
 ```bash
 # 安装依赖
-npm install
+pnpm install
 
 # 复制环境变量配置
 cp .env.example .env
@@ -41,7 +41,7 @@ FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ### 作为 MCP 服务器运行
 
 ```bash
-npm run mcp
+pnpm mcp
 ```
 
 然后在 Claude Code 的 `.claude.json` 中配置：
@@ -64,7 +64,7 @@ npm run mcp
 ### 开发模式
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 ## MCP 工具列表
