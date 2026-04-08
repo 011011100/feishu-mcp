@@ -14,7 +14,8 @@ import { randomUUID } from 'crypto'
 // 创建 Express 应用
 const app = express()
 app.use(express.json())
-const PORT = process.env.PORT || 3000
+const DEFAULT_PORT = 3000
+const FALLBACK_PORT_RANGE_END = 3100
 
 // 工具参数定义
 const ListTablesSchema = z.object({
@@ -434,11 +435,81 @@ app.get('/', (req, res) => {
 })
 
 // 启动服务器
-app.listen(PORT, () => {
-  console.log(`飞书 Bitable MCP 服务器已启动`)
-  console.log(`- 本地访问: http://localhost:${PORT}`)
-  console.log(`- MCP 端点: http://localhost:${PORT}/sse`)
-  console.log(`- 健康检查: http://localhost:${PORT}/health`)
-  console.log(`环境变量检查: FEISHU_APP_ID=${process.env.FEISHU_APP_ID ? '已设置' : '未设置'}`)
-  console.log(`环境变量检查: FEISHU_APP_SECRET=${process.env.FEISHU_APP_SECRET ? '已设置' : '未设置'}`)
+function getPortConfig() {
+  const envPort = process.env.PORT
+
+  if (!envPort) {
+    return {
+      locked: false,
+      startPort: DEFAULT_PORT,
+      endPort: FALLBACK_PORT_RANGE_END,
+    }
+  }
+
+  const parsedPort = Number.parseInt(envPort, 10)
+
+  if (Number.isNaN(parsedPort)) {
+    throw new Error(`PORT 环境变量无效: ${envPort}`)
+  }
+
+  return {
+    locked: true,
+    startPort: parsedPort,
+    endPort: parsedPort,
+  }
+}
+
+function listenOnPort(port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, () => {
+      server.off('error', onError)
+      resolve()
+    })
+
+    function onError(error: Error) {
+      reject(error)
+    }
+
+    server.once('error', onError)
+  })
+}
+
+function isPortInUseError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error && error.code === 'EADDRINUSE'
+}
+
+async function startServer() {
+  const { locked, startPort, endPort } = getPortConfig()
+
+  for (let port = startPort; port <= endPort; port += 1) {
+    try {
+      await listenOnPort(port)
+
+      if (port !== startPort) {
+        console.warn(`端口 ${startPort} 已被占用，已自动切换到 ${port}`)
+      }
+
+      console.log(`飞书 Bitable MCP 服务器已启动`)
+      console.log(`- 本地访问: http://localhost:${port}`)
+      console.log(`- MCP 端点: http://localhost:${port}/sse`)
+      console.log(`- 健康检查: http://localhost:${port}/health`)
+      console.log(`环境变量检查: FEISHU_APP_ID=${process.env.FEISHU_APP_ID ? '已设置' : '未设置'}`)
+      console.log(`环境变量检查: FEISHU_APP_SECRET=${process.env.FEISHU_APP_SECRET ? '已设置' : '未设置'}`)
+      return
+    } catch (error) {
+      if (!locked && isPortInUseError(error) && port < endPort) {
+        console.warn(`端口 ${port} 已被占用，尝试端口 ${port + 1}...`)
+        continue
+      }
+
+      throw error
+    }
+  }
+
+  throw new Error(`无法在 ${startPort}-${endPort} 范围内找到可用端口`)
+}
+
+startServer().catch((error) => {
+  console.error('启动服务器失败:', error)
+  process.exit(1)
 })
