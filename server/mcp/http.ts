@@ -36,6 +36,12 @@ const SearchRecordsSchema = z.object({
   keyword: z.string().describe('搜索关键词'),
 })
 
+const SearchBitableAppsSchema = z.object({
+  query: z.string().max(100).default('').describe('多维表格名称关键词；留空时列出扫描到的多维表格'),
+  folderToken: z.string().optional().describe('从指定云盘文件夹开始搜索（可选）'),
+  limit: z.number().int().min(1).max(20).default(10).describe('最多返回多少个结果，默认 10，最大 20'),
+})
+
 const SearchWikiSchema = z.object({
   query: z.string().max(50).describe('搜索关键词，长度不超过50个字符'),
   spaceId: z.string().optional().describe('知识空间ID（可选，不填则搜索所有空间）'),
@@ -188,6 +194,27 @@ function createServer(): Server {
         },
       },
       {
+        name: 'search_bitable_apps',
+        description: '按名称递归搜索当前应用可访问的多维表格；query 留空时列出扫描到的多维表格',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: '多维表格名称关键词；留空时列出扫描到的多维表格',
+            },
+            folderToken: {
+              type: 'string',
+              description: '从指定云盘文件夹开始搜索（可选）',
+            },
+            limit: {
+              type: 'number',
+              description: '最多返回多少个结果，默认 10，最大 20',
+            },
+          },
+        },
+      },
+      {
         name: 'get_docx_blocks',
         description: '获取 Docx 文档的所有内容块，包括文本、标题、代码、图片等。文档ID可从Wiki搜索结果中获取（obj_token字段）',
         inputSchema: {
@@ -299,6 +326,21 @@ function createServer(): Server {
           console.log(`  -> query: "${query}"${spaceId ? ', spaceId: ' + spaceId : ''}${nodeId ? ', nodeId: ' + nodeId : ''}`)
           const result = await feishu.searchWiki(query, spaceId, nodeId, undefined, pageSize)
           console.log(`  <- 找到 ${result.items?.length || 0} 个 Wiki 文档`)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          }
+        }
+
+        case 'search_bitable_apps': {
+          const { query, folderToken, limit } = SearchBitableAppsSchema.parse(args)
+          console.log(`  -> query: "${query || '(empty)'}"${folderToken ? ', folderToken: ' + folderToken : ''}, limit: ${limit}`)
+          const result = await feishu.searchBitableApps(query, folderToken, limit)
+          console.log(`  <- 找到 ${result.items?.length || 0} 个多维表格候选`)
           return {
             content: [
               {

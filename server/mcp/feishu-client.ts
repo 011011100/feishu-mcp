@@ -1,5 +1,23 @@
 import * as lark from '@larksuiteoapi/node-sdk'
 
+type DriveFile = {
+  token: string
+  name: string
+  type: string
+  parent_token?: string
+  url?: string
+  shortcut_info?: {
+    target_type: string
+    target_token: string
+  }
+  created_time?: string
+  modified_time?: string
+  owner_id?: string
+}
+
+const DEFAULT_DRIVE_PAGE_SIZE = 200
+const MAX_DRIVE_SEARCH_FOLDERS = 100
+
 export class FeishuClient {
   private client: lark.Client
   private tokenCache: string | null = null
@@ -234,5 +252,136 @@ export class FeishuClient {
       path: { app_token: appToken },
     })
     return result
+  }
+
+  /**
+   * 获取云盘文件夹下的清单。
+   * 不传 folderToken 时，返回当前应用可访问的云盘根目录内容。
+   */
+  private async listDriveFiles(folderToken?: string, pageToken?: string, pageSize: number = DEFAULT_DRIVE_PAGE_SIZE) {
+    const params = new URLSearchParams()
+    params.append('page_size', String(pageSize))
+    params.append('order_by', 'EditedTime')
+    params.append('direction', 'DESC')
+
+    if (folderToken) {
+      params.append('folder_token', folderToken)
+    }
+
+    if (pageToken) {
+      params.append('page_token', pageToken)
+    }
+
+    const url = `https://open.feishu.cn/open-apis/drive/v1/files?${params}`
+
+    return this.request<{
+      files?: DriveFile[]
+      next_page_token?: string
+      has_more?: boolean
+    }>('GET', url)
+  }
+
+  private toBitableSearchResult(file: DriveFile, query: string) {
+    const name = file.name ?? ''
+
+    if (query && !name.toLowerCase().includes(query)) {
+      return null
+    }
+
+    if (file.type === 'bitable') {
+      return {
+        appToken: file.token,
+        name,
+        url: file.url,
+        parentToken: file.parent_token,
+        modifiedTime: file.modified_time,
+        createdTime: file.created_time,
+        shortcut: false,
+      }
+    }
+
+    if (file.type === 'shortcut' && file.shortcut_info?.target_type === 'bitable') {
+      return {
+        appToken: file.shortcut_info.target_token,
+        name,
+        url: file.url,
+        parentToken: file.parent_token,
+        modifiedTime: file.modified_time,
+        createdTime: file.created_time,
+        shortcut: true,
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * 按名称递归搜索当前应用可访问的多维表格。
+   * query 为空时返回扫描到的多维表格列表。
+   */
+  async searchBitableApps(query: string = '', folderToken?: string, limit: number = 10) {
+    const normalizedQuery = query.trim().toLowerCase()
+    const queue: Array<string | undefined> = [folderToken]
+    const visitedFolders = new Set<string>()
+    const results = new Map<string, {
+      appToken: string
+      name: string
+      url?: string
+      parentToken?: string
+      modifiedTime?: string
+      createdTime?: string
+      shortcut: boolean
+    }>()
+
+    let truncated = false
+
+    while (queue.length > 0) {
+      const currentFolderToken = queue.shift()
+      const folderKey = currentFolderToken ?? '__root__'
+
+      if (visitedFolders.has(folderKey)) {
+        continue
+      }
+
+      if (visitedFolders.size >= MAX_DRIVE_SEARCH_FOLDERS) {
+        truncated = true
+        break
+      }
+
+      visitedFolders.add(folderKey)
+
+      let pageToken: string | undefined
+
+      do {
+        const page = await this.listDriveFiles(currentFolderToken, pageToken)
+        const files = page.files ?? []
+
+        for (const file of files) {
+          if (file.type === 'folder') {
+            queue.push(file.token)
+          }
+
+          const bitable = this.toBitableSearchResult(file, normalizedQuery)
+
+          if (bitable) {
+            results.set(bitable.appToken, bitable)
+          }
+        }
+
+        pageToken = page.has_more ? page.next_page_token : undefined
+      } while (pageToken)
+    }
+
+    const items = Array.from(results.values())
+      .sort((left, right) => (right.modifiedTime ?? '').localeCompare(left.modifiedTime ?? ''))
+      .slice(0, limit)
+
+    return {
+      items,
+      total: results.size,
+      scanned_folders: visitedFolders.size,
+      truncated,
+      query: query.trim(),
+    }
   }
 }

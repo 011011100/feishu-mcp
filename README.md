@@ -7,6 +7,7 @@
 - 列出多维表格中的所有数据表
 - 读取数据表记录
 - 搜索记录
+- 按名称搜索多维表格
 - 获取数据表视图
 
 ## 安装
@@ -74,6 +75,7 @@ pnpm dev
 | `list_bitable_tables` | 获取多维表格中的所有数据表 |
 | `list_bitable_records` | 读取数据表记录 |
 | `search_bitable_records` | 搜索记录 |
+| `search_bitable_apps` | 按名称搜索当前应用可访问的多维表格 |
 | `get_bitable_views` | 获取数据表视图 |
 
 ## 示例
@@ -86,6 +88,10 @@ pnpm dev
 
 ```
 帮我读取 bascnxxxxxxxx 表格中 tblxxxxxxxx 表的前 100 条记录
+```
+
+```
+帮我搜索名称里带 “test” 的多维表格
 ```
 
 ## License

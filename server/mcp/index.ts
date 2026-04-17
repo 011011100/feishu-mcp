@@ -27,6 +27,12 @@ const SearchRecordsSchema = z.object({
   keyword: z.string().describe('搜索关键词'),
 })
 
+const SearchBitableAppsSchema = z.object({
+  query: z.string().max(100).default('').describe('多维表格名称关键词；留空时列出扫描到的多维表格'),
+  folderToken: z.string().optional().describe('从指定云盘文件夹开始搜索（可选）'),
+  limit: z.number().int().min(1).max(20).default(10).describe('最多返回多少个结果，默认 10，最大 20'),
+})
+
 // 创建 MCP 服务器
 const server = new Server(
   {
@@ -130,6 +136,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         required: ['appToken', 'tableId'],
       },
     },
+    {
+      name: 'search_bitable_apps',
+      description: '按名称递归搜索当前应用可访问的多维表格；query 留空时列出扫描到的多维表格',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: '多维表格名称关键词；留空时列出扫描到的多维表格',
+          },
+          folderToken: {
+            type: 'string',
+            description: '从指定云盘文件夹开始搜索（可选）',
+          },
+          limit: {
+            type: 'number',
+            description: '最多返回多少个结果，默认 10，最大 20',
+          },
+        },
+      },
+    },
   ]
 
   return { tools }
@@ -186,6 +213,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           tableId: z.string(),
         }).parse(args)
         const result = await feishu.getViews(appToken, tableId)
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        }
+      }
+
+      case 'search_bitable_apps': {
+        const { query, folderToken, limit } = SearchBitableAppsSchema.parse(args)
+        const result = await feishu.searchBitableApps(query, folderToken, limit)
         return {
           content: [
             {
