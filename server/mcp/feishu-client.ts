@@ -18,6 +18,32 @@ type DriveFile = {
 const DEFAULT_DRIVE_PAGE_SIZE = 200
 const MAX_DRIVE_SEARCH_FOLDERS = 100
 
+function getSdkErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as {
+      response?: {
+        status?: number
+        data?: {
+          code?: number
+          msg?: string
+          [key: string]: unknown
+        }
+      }
+    }).response
+
+    if (response?.data?.msg) {
+      const code = response.data.code ?? response.status ?? 'unknown'
+      return `API 错误: ${response.data.msg} (code: ${code})`
+    }
+
+    if (response?.status) {
+      return `Request failed with status code ${response.status}`
+    }
+  }
+
+  return error instanceof Error ? error.message : String(error)
+}
+
 export class FeishuClient {
   private client: lark.Client
   private tokenCache: string | null = null
@@ -159,17 +185,23 @@ export class FeishuClient {
     pageToken?: string,
     pageSize: number = 20
   ) {
-    const result = await this.client.wiki.v1.node.search({
-      data: {
-        query,
-        space_id: spaceId,
-        node_id: nodeId,
-      },
-      params: {
-        page_token: pageToken,
-        page_size: Math.min(pageSize, 50),
-      },
-    })
+    let result: Awaited<ReturnType<typeof this.client.wiki.v1.node.search>>
+
+    try {
+      result = await this.client.wiki.v1.node.search({
+        data: {
+          query,
+          space_id: spaceId,
+          node_id: nodeId,
+        },
+        params: {
+          page_token: pageToken,
+          page_size: Math.min(pageSize, 50),
+        },
+      })
+    } catch (error) {
+      throw new Error(getSdkErrorMessage(error))
+    }
 
     if (result.code !== 0 || !result.data) {
       throw new Error(`API 错误: ${result.msg} (code: ${result.code})`)
