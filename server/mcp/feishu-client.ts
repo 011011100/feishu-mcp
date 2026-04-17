@@ -145,7 +145,7 @@ export class FeishuClient {
 
   /**
    * 搜索 Wiki
-   * API 文档: https://open.feishu.cn/document/server-docs/docs/wiki-v2/wiki-search
+   * API 文档: https://open.feishu.cn/document/ukTMukTMukTM/uEzN0YjLxcDN24SM3QjN/search_wiki
    * @param query 搜索关键词，长度不超过50个字符
    * @param spaceId 知识空间ID（可选）
    * @param nodeId 节点ID（可选，过滤该节点及其子节点）
@@ -159,31 +159,40 @@ export class FeishuClient {
     pageToken?: string,
     pageSize: number = 20
   ) {
-    const params = new URLSearchParams()
-    if (pageToken) params.append('page_token', pageToken)
-    params.append('page_size', String(Math.min(pageSize, 50)))
+    const result = await this.client.wiki.v1.node.search({
+      data: {
+        query,
+        space_id: spaceId,
+        node_id: nodeId,
+      },
+      params: {
+        page_token: pageToken,
+        page_size: Math.min(pageSize, 50),
+      },
+    })
 
-    const url = `https://open.feishu.cn/open-apis/wiki/v2/nodes/search?${params}`
+    if (result.code !== 0 || !result.data) {
+      throw new Error(`API 错误: ${result.msg} (code: ${result.code})`)
+    }
 
-    const body: Record<string, unknown> = { query }
-    if (spaceId) body.space_id = spaceId
-    if (nodeId) body.node_id = nodeId
-
-    return this.request<{
+    return result.data as {
       items: Array<{
         node_id: string
         space_id: string
         obj_type: number
         obj_token: string
-        parent_id: string
-        sort_id: number
         title: string
-        url: string
-        icon: string
+        url?: string
+        icon?: string
+        create_time?: string
+        update_time?: string
+        delete_time?: string
+        child_num?: number
+        version?: number
       }>
       page_token?: string
       has_more: boolean
-    }>('POST', url, body)
+    }
   }
 
   /**
